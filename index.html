@@ -270,23 +270,67 @@ function musicStop(){
        musicBus.gain.setTargetAtTime(0.0001, AC.currentTime, 0.08); }catch(e){}
 }
 
-/* ---- SFX ---- */
+/* ---- SFX (extra meme) ---- */
+// pigeon "coo" formant stab — two detuned sines through a wobbling bandpass
+function cooStab(t,vol,pitch,wob){
+  if(!AC) return;
+  try{
+    var f1=AC.createOscillator(), f2=AC.createOscillator(), g=AC.createGain(), bp=AC.createBiquadFilter();
+    f1.type='sine'; f2.type='sine';
+    var base=620*(pitch||1);
+    f1.frequency.setValueAtTime(base,t);
+    f1.frequency.exponentialRampToValueAtTime(base*0.72,t+0.12);
+    f2.frequency.setValueAtTime(base*1.006,t);
+    f2.frequency.exponentialRampToValueAtTime(base*0.725,t+0.12);
+    bp.type='bandpass'; bp.Q.value=3.4;
+    bp.frequency.setValueAtTime(900,t);
+    bp.frequency.exponentialRampToValueAtTime(1800,t+0.06);
+    bp.frequency.exponentialRampToValueAtTime(700,t+0.16);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.2);
+    f1.connect(bp); f2.connect(bp); bp.connect(g); g.connect(sfxBus);
+    f1.start(t); f2.start(t); f1.stop(t+0.22); f2.stop(t+0.22);
+  }catch(e){}
+}
 function sfxPeck(perfect,combo){
   if(!AC) return;
   try{
     var t=AC.currentTime;
     var base=300*Math.pow(1+combo*0.012, perfect?1.18:1);
+    // crispy crunch
     tone(t,base,base*1.7,0.09,'square',0.2,sfxBus);
-    noise(t,0.03,0.12,'highpass',2500);
-    if(perfect){ tone(t+0.02,1200,1800,0.1,'triangle',0.12,sfxBus); }
+    noise(t,0.04,0.16,'highpass',2800);
+    if(perfect){
+      // sparkle chime
+      tone(t+0.02,1200,1800,0.1,'triangle',0.12,sfxBus);
+      tone(t+0.04,1800,2600,0.08,'triangle',0.08,sfxBus);
+      // happy pigeon coo "NOM!"
+      cooStab(t+0.03, 0.22, 1+combo*0.004);
+      // random extra meme chirp at high combos
+      if(combo>=30 && chance(0.5)){
+        cooStab(t+0.09, 0.14, 1.4+combo*0.003, true);
+      }
+    }else{
+      // softer "coo" for good hits
+      cooStab(t+0.02, 0.12, 0.95);
+    }
   }catch(e){}
 }
 function sfxMilestone(level){
   if(!AC) return;
   try{
     var t=AC.currentTime;
-    var notes=['C5','E5','G5','C6'];
-    for(var i=0;i<4;i++) tone(t+i*0.06, SCALE[notes[i]], SCALE[notes[i]], 0.16,'square',0.16,sfxBus);
+    // ascending fanfare
+    var notes=['C4','E4','G4','C5','E5','G5'];
+    for(var i=0;i<6;i++) tone(t+i*0.055, SCALE[notes[i]], SCALE[notes[i]], 0.18,'square',0.16,sfxBus);
+    // big "BWAAAH" horn stab
+    tone(t,180,182,0.5,'sawtooth',0.18,sfxBus,900,2);
+    tone(t+0.01,270,272,0.5,'square',0.12,sfxBus);
+    if(level>=2){ // airhorn-ish blast
+      tone(t+0.12,520,523,0.5,'sawtooth',0.16,sfxBus,3200);
+      tone(t+0.12,784,787,0.5,'square',0.12,sfxBus);
+    }
     if(level>=4){ // 50: jetpack whoosh
       var s=AC.createBufferSource(); s.buffer=noiseBuf; s.loop=true;
       var bp=AC.createBiquadFilter(); bp.type='bandpass';
@@ -295,9 +339,10 @@ function sfxMilestone(level){
       g.gain.linearRampToValueAtTime(0.2,t+0.4); g.gain.exponentialRampToValueAtTime(0.0001,t+0.55);
       s.connect(bp); bp.connect(g); g.connect(sfxBus); s.start(t); s.stop(t+0.6);
     }
-    if(level>=5){ // 100: airhorn-ish rave blast
+    if(level>=5){ // 100: rave airhorn + vuvuzela stack
       tone(t,520,523,0.7,'sawtooth',0.16,sfxBus,4000);
       tone(t,784,787,0.7,'square',0.12,sfxBus);
+      tone(t+0.05,660,660,0.7,'sawtooth',0.10,sfxBus);
     }
   }catch(e){}
 }
@@ -305,8 +350,33 @@ function sfxWomp(){
   if(!AC) return;
   try{
     var t=AC.currentTime;
+    // sad trombone descending
     tone(t,SCALE.E3,SCALE.E3,0.28,'sawtooth',0.22,sfxBus,600,3);
-    tone(t+0.3,SCALE.G3,SCALE.C3,0.4,'sawtooth',0.22,sfxBus,600,3);
+    tone(t+0.18,SCALE.G3,SCALE.C3,0.45,'sawtooth',0.22,sfxBus,600,3);
+    tone(t+0.4,SCALE.C3,SCALE.A2,0.5,'sawtooth',0.18,sfxBus,500,3);
+    // tiny "boop" punctuation
+    tone(t+0.7,220,160,0.18,'square',0.12,sfxBus);
+  }catch(e){}
+}
+function sfxVeggieFail(){
+  if(!AC) return;
+  try{
+    var t=AC.currentTime;
+    // gagging "BLEGH" — rapid pitch stutter down
+    var o=AC.createOscillator(), g=AC.createGain(), lp=AC.createBiquadFilter();
+    o.type='sawtooth';
+    o.frequency.setValueAtTime(420,t);
+    for(var k=0;k<5;k++){
+      o.frequency.setValueAtTime(420-k*60, t+k*0.06);
+    }
+    o.frequency.exponentialRampToValueAtTime(70,t+0.5);
+    lp.type='lowpass'; lp.frequency.value=1100; lp.Q.value=2;
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.linearRampToValueAtTime(0.3,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.55);
+    o.connect(lp); lp.connect(g); g.connect(sfxBus);
+    o.start(t); o.stop(t+0.6);
+    noise(t+0.2,0.25,0.12,'lowpass',700);
   }catch(e){}
 }
 function sfxBwargh(){
@@ -315,18 +385,32 @@ function sfxBwargh(){
     var t=AC.currentTime;
     var o=AC.createOscillator(), g=AC.createGain(), lp=AC.createBiquadFilter(), lfo=AC.createOscillator(), lg=AC.createGain();
     o.type='sawtooth';
-    o.frequency.setValueAtTime(480,t);
-    o.frequency.exponentialRampToValueAtTime(95,t+0.55);
-    lp.type='lowpass'; lp.frequency.value=1400; lp.Q.value=2;
-    lfo.type='square'; lfo.frequency.value=22; lg.gain.value=220;
+    o.frequency.setValueAtTime(520,t);
+    o.frequency.exponentialRampToValueAtTime(80,t+0.7);
+    lp.type='lowpass'; lp.frequency.value=1500; lp.Q.value=2.4;
+    lfo.type='square'; lfo.frequency.value=26; lg.gain.value=260;
     lfo.connect(lg); lg.connect(o.frequency);
     g.gain.setValueAtTime(0.0001,t);
-    g.gain.linearRampToValueAtTime(0.35,t+0.03);
-    g.gain.setValueAtTime(0.3,t+0.3);
-    g.gain.exponentialRampToValueAtTime(0.0001,t+0.6);
+    g.gain.linearRampToValueAtTime(0.4,t+0.03);
+    g.gain.setValueAtTime(0.32,t+0.4);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+0.75);
     o.connect(lp); lp.connect(g); g.connect(sfxBus);
-    o.start(t); lfo.start(t); o.stop(t+0.65); lfo.stop(t+0.65);
-    noise(t,0.5,0.1,'lowpass',900);
+    o.start(t); lfo.start(t); o.stop(t+0.8); lfo.stop(t+0.8);
+    noise(t,0.6,0.12,'lowpass',900);
+    // final raspberry "PFFT"
+    setTimeout(function(){ try{
+      var t2=AC.currentTime;
+      var o2=AC.createOscillator(), g2=AC.createGain();
+      o2.type='sawtooth';
+      o2.frequency.setValueAtTime(120,t2);
+      o2.frequency.exponentialRampToValueAtTime(40,t2+0.25);
+      g2.gain.setValueAtTime(0.0001,t2);
+      g2.gain.exponentialRampToValueAtTime(0.18,t2+0.02);
+      g2.gain.exponentialRampToValueAtTime(0.0001,t2+0.3);
+      o2.connect(g2); g2.connect(sfxBus);
+      o2.start(t2); o2.stop(t2+0.32);
+      noise(t2,0.25,0.15,'lowpass',500);
+    }catch(e){} }, 650);
   }catch(e){}
 }
 function sfxUi(){
@@ -539,12 +623,18 @@ function newGameState(){
     blink:0, nextBlink:rnd(1.5,3.5),
     breatheT:0, lookX:0, lookY:0,
     comboPop:0, zoomPunch:0, shake:0,
+    flashT:0, flashCol:'#ffffff',
+    freezeT:0,
+    derpT:0, derpExpr:'derp',
+    speedLines:0,
+    beatPulse:0,
     banner:null,
     event:null, lastEventBar:-1,
     failAt:0, bwarghDone:false, failReason:'',
     stareHead:0,
     hintBeats:true,
-    milestoneHit:0
+    milestoneHit:0,
+    lastBeatInt:-1
   };
 }
 try{ G=newGameState(); G.best=parseInt(localStorage.getItem('pcs_best')||'0',10)||0; }catch(e){ G=newGameState(); }
@@ -617,6 +707,7 @@ function startRun(){
   G.runStart=performance.now(); G.runLen=0;
   G.peckAnim=0; G.expr='idle'; G.exprTimer=0;
   G.comboPop=0; G.zoomPunch=0; G.shake=0; G.banner=null;
+  G.flashT=0; G.freezeT=0; G.derpT=0; G.speedLines=0; G.beatPulse=0; G.lastBeatInt=-1;
   G.event=null; G.lastEventBar=-1; G.hintBeats=true; G.milestoneHit=0;
   texts=[]; waves=[];
   fillQueue();
@@ -636,21 +727,33 @@ function doPeck(){
     var perfect = Math.abs(n.d)<=0.13;
     G.combo++;
     G.score += perfect?10:5;
-    G.comboPop=1; G.zoomPunch=Math.min(G.zoomPunch+0.12+G.combo*0.004,0.55);
-    G.shake=Math.min(G.shake+2+G.combo*0.06,9);
+    G.comboPop=1; G.zoomPunch=Math.min(G.zoomPunch+0.14+G.combo*0.005,0.6);
+    G.shake=Math.min(G.shake+3+G.combo*0.07,11);
     sfxPeck(perfect,G.combo);
     var tp = targetPos(n.t);
     var col = FOOD_COLOR[n.t.food]||[255,255,255];
-    pburst(tp.x,tp.y,[col,[255,255,255]],perfect?22:14,240,1,0.7);
+    pburst(tp.x,tp.y,[col,[255,255,255]],perfect?26:16,260,1,0.7);
     if(perfect){
       showJudge('PERFECT!','#fff3a8');
+      // white flash for perfect
+      G.flashT=0.32; G.flashCol='#ffffff';
+      G.speedLines=Math.min(G.speedLines+0.4,1);
       if(chance(0.35)) addText(tp.x,tp.y-30,pick(PERFECT_WORDS),16,'#ffffff');
-      addWave(tp.x,tp.y,60,'#ffffff',4);
+      addWave(tp.x,tp.y,64,'#ffffff',4);
+      // bigger confetti burst at high combo
+      if(G.combo>=30){ pburst(tp.x,tp.y,[[255,255,255],[255,230,120],[120,220,255]],18,300,1,1.0); }
     }else{
       showJudge('GOOD','#8ff7ff');
       addWave(tp.x,tp.y,42,'#8ff7ff',3);
     }
-    G.expr='happy'; G.exprTimer=0.28;
+    // meme expression on hit
+    if(perfect){
+      if(G.combo>=50 && chance(0.4)){ G.expr='money'; G.exprTimer=0.5; }
+      else if(G.combo>=20 && chance(0.3)){ G.expr='smug'; G.exprTimer=0.4; }
+      else { G.expr='happy'; G.exprTimer=0.28; }
+    } else {
+      G.expr='happy'; G.exprTimer=0.28;
+    }
     checkMilestones();
     if(G.combo>=24 && chance(0.18)) addText(210+rnd(-60,60),260, pick(['HEH','NOM','TOO EASY','AGAIN','COWARD?']),18,'#ffe98a');
     return;
@@ -666,14 +769,17 @@ function checkMilestones(){
     if(G.combo>=m.at && G.milestoneHit<m.at){
       G.milestoneHit=m.at;
       G.banner={title:m.title,sub:m.sub,t:1.6,max:1.6};
-      G.zoomPunch=Math.min(G.zoomPunch+0.35,0.8);
-      G.shake=Math.min(G.shake+6,14);
+      G.zoomPunch=Math.min(G.zoomPunch+0.5,0.95);
+      G.shake=Math.min(G.shake+9,16);
+      G.freezeT=0.45;
+      G.flashT=0.5; G.flashCol='#fff6c8';
+      G.speedLines=1;
       sfxMilestone(m.level);
-      pburst(210,430,[[255,226,80],[255,120,220],[80,240,255],[255,255,255]],46,360,1,1.1);
-      addWave(210,430,220, SCENES[sceneIdx].accent, 10);
+      pburst(210,430,[[255,226,80],[255,120,220],[80,240,255],[255,255,255]],60,420,1,1.3);
+      addWave(210,430,260, SCENES[sceneIdx].accent, 12);
       G.expr='wow'; G.exprTimer=0.8;
       if(m.at===50){ // confetti rain
-        for(var k=0;k<30;k++) pspawn({x:rnd(0,420),y:rnd(-80,0),vx:rnd(-20,20),vy:rnd(60,160),
+        for(var k=0;k<40;k++) pspawn({x:rnd(0,420),y:rnd(-80,0),vx:rnd(-20,20),vy:rnd(60,160),
           life:rnd(1.5,2.6),size:rnd(4,8),r:rint(40,255),g:rint(40,255),b:rint(40,255),type:1,vr:rnd(-8,8),grav:120,z:0});
       }
     }
@@ -686,12 +792,16 @@ function failRun(reason){
   G.failReason=reason;
   G.failAt=performance.now();
   G.bwarghDone=false; G.stareHead=0;
-  G.shake=16; G.zoomPunch=0.4;
+  G.shake=20; G.zoomPunch=0.5; G.freezeT=0.5;
   G.expr='shock'; G.exprTimer=0.4;
   G.runLen=(performance.now()-G.runStart)/1000;
   if(G.combo>G.best){ G.best=G.combo; try{localStorage.setItem('pcs_best',String(G.best));}catch(e){} }
   musicStop();
-  sfxWomp();
+  // meme fail sfx by reason
+  var isVeg = reason.indexOf('VEGGIE')>=0;
+  if(isVeg) sfxVeggieFail(); else sfxWomp();
+  // red screen flash (or purple for veggie)
+  G.flashT=0.6; G.flashCol = isVeg ? '#b15bff' : '#ff3b3b';
   pburst(210,640,[[120,255,120],[180,120,255]],12,120,1,0.9);
   // big red judgment at the peck lane so every failure reads at a glance
   var JM={
@@ -899,6 +1009,11 @@ function drawPigeon(t, cx, cy, dt){
 
   // expression resolution
   var expr = G.exprTimer>0 ? G.expr : 'idle';
+  // random derp moment when idle and no target pressing
+  if(expr==='idle' && G.state==='play' && chance(0.004)){
+    G.expr=pick(['derp','sneeze','wink']); G.exprTimer=rnd(0.5,1.1);
+    expr=G.expr;
+  }
   var nt = G.state==='play' ? nearestTarget() : null;
   if(expr==='idle' && nt){
     if(G.combo>=30 && nt.d<0.55) expr='panic';
@@ -1082,8 +1197,8 @@ function pigeonBody(x,y,t,o){
   drawEye(eL.x,eL.y,o,-1);
   drawEye(eR.x,eR.y,o,1);
 
-  // sunglasses (combo >= 30)
-  if(o.bShades && o.expr!=='shock'){
+  // sunglasses (combo >= 30) — hidden for shock/wow/money so the eyes read
+  if(o.bShades && o.expr!=='shock' && o.expr!=='wow' && o.expr!=='money'){
     ctx.save();
     ctx.fillStyle='#11131c';
     rr(ctx,-34,-18,30,20,6); ctx.fill();
@@ -1101,7 +1216,8 @@ function pigeonBody(x,y,t,o){
   var open=0;
   if(o.lunge>0.2) open=Math.sin(clamp((o.lunge-0.2)/0.8,0,1)*Math.PI)*0.5;
   if(o.expr==='wow'||o.expr==='shock') open=0.55;
-  if(o.expr==='dead' && o.stare>0.6) open=0.15;
+  if(o.expr==='derp'||o.expr==='money'||o.expr==='sneeze') open=0.4;
+  if(o.expr==='dead' && o.stare>0.6) open=0.2;
   ctx.save();
   // upper beak
   ctx.fillStyle='#ff9420';
@@ -1119,14 +1235,48 @@ function pigeonBody(x,y,t,o){
   ctx.fillStyle='#b35c0d'; ctx.beginPath(); ctx.arc(-2,-8,1.6,0,TAU); ctx.fill();
   ctx.restore();
 
+  // tongue (out on happy/derp/money/dead)
+  if((o.expr==='happy'||o.expr==='derp'||o.expr==='money'||(o.expr==='dead'&&o.stare>0.5)) && open>0.18){
+    ctx.save();
+    ctx.fillStyle='#ff6b8a';
+    ctx.beginPath();
+    ctx.ellipse(0, 10+open*4, 5, 7+open*3, 0, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+  }
+
   // expression extras
   if(o.expr==='wow'){
     ctx.strokeStyle='#fff'; ctx.lineWidth=4;
     ctx.beginPath(); ctx.moveTo(30,-44); ctx.lineTo(42,-60); ctx.moveTo(36,-40); ctx.lineTo(42,-60); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-30,-44); ctx.lineTo(-42,-60); ctx.moveTo(-36,-40); ctx.lineTo(-42,-60); ctx.stroke();
+    // sparkle stars
+    ctx.fillStyle='#ffe66b';
+    for(var sp=0;sp<3;sp++){
+      var sa=t*0.01+sp*2.1, sr=46+Math.sin(sa)*4;
+      ctx.beginPath(); ctx.arc(Math.cos(sa)*sr, -50+Math.sin(sa)*8, 2.5, 0, TAU); ctx.fill();
+    }
+  }
+  if(o.expr==='money'){
+    // floating dollar signs
+    ctx.fillStyle='#ffe66b'; ctx.font='bold 16px sans-serif'; ctx.textAlign='center';
+    var ds=t*0.05;
+    ctx.fillText('$', 34, -46-Math.sin(ds)*4);
+    ctx.fillText('$', -34, -42-Math.sin(ds+1)*4);
+    ctx.fillText('$', 0, -60-Math.sin(ds+2)*4);
   }
   if(o.expr==='panic'){
     ctx.fillStyle='#7ad7ff';
     ctx.beginPath(); ctx.arc(30,-16,4,0,Math.PI*1.5); ctx.lineTo(30,-28); ctx.fill();
+    ctx.beginPath(); ctx.arc(-28,-12,3.5,0,Math.PI*1.5); ctx.lineTo(-28,-22); ctx.fill();
+  }
+  if(o.expr==='sneeze'){
+    // spray drops
+    ctx.fillStyle='rgba(180,220,255,0.85)';
+    for(var dr=0;dr<4;dr++){
+      var dx=22+dr*7, dy=-6+Math.sin(t*0.04+dr)*4;
+      ctx.beginPath(); ctx.arc(dx,dy,2.2,0,TAU); ctx.fill();
+    }
   }
   if(o.expr==='dead' && o.stare>0.5){
     // stink lines of judgment
@@ -1142,39 +1292,66 @@ function pigeonBody(x,y,t,o){
 }
 
 function drawEye(ex,ey,o,side){
-  if(o.blink || o.expr==='happy'){
-    // happy closed arc ^ ^
-    ctx.strokeStyle='#23262f'; ctx.lineWidth=4; ctx.lineCap='round';
+  var E='#23262f';
+  // wink: only the right eye (side===1) closes
+  if(o.expr==='wink' && side===1){
+    ctx.strokeStyle=E; ctx.lineWidth=4; ctx.lineCap='round';
     ctx.beginPath(); ctx.arc(ex,ey+2,7,Math.PI*1.15,Math.PI*1.85); ctx.stroke();
     return;
   }
+  if(o.blink || o.expr==='happy'){
+    ctx.strokeStyle=E; ctx.lineWidth=4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.arc(ex,ey+2,7,Math.PI*1.15,Math.PI*1.85); ctx.stroke();
+    return;
+  }
+  // X eyes for dead
+  if(o.expr==='dead'){
+    ctx.strokeStyle=E; ctx.lineWidth=4; ctx.lineCap='round';
+    ctx.beginPath();
+    ctx.moveTo(ex-6,ey-6); ctx.lineTo(ex+6,ey+6);
+    ctx.moveTo(ex+6,ey-6); ctx.lineTo(ex-6,ey+6);
+    ctx.stroke();
+    return;
+  }
+  // dollar sign eyes for money
+  if(o.expr==='money'){
+    ctx.fillStyle='#ffe66b';
+    ctx.font='bold 16px sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('$', ex, ey+1);
+    return;
+  }
+  // crossed eyes for derp
+  var derpLook = (o.expr==='derp') ? (side===1 ? -6 : 6) : 0;
   // white
   ctx.fillStyle='#f2f5fb';
   ctx.beginPath(); ctx.ellipse(ex,ey,8.5,9,0,0,TAU); ctx.fill();
   var pup=4.5;
   if(o.expr==='shock'){ pup=3; ctx.fillStyle='#f2f5fb'; ctx.beginPath(); ctx.ellipse(ex,ey,11,12,0,0,TAU); ctx.fill(); }
-  if(o.expr==='dead'){ pup=3.4; }
+  if(o.expr==='sneeze'){ pup=2.2; }
+  var lx = derpLook || o.lookX, ly = o.lookY;
   if(!o.bShades || o.expr==='shock'){
     ctx.fillStyle='#1b1e26';
-    ctx.beginPath(); ctx.arc(ex+o.lookX,ey+o.lookY,pup,0,TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(ex+lx,ey+ly,pup,0,TAU); ctx.fill();
     ctx.fillStyle='#fff';
-    ctx.beginPath(); ctx.arc(ex+o.lookX-1.4,ey+o.lookY-1.6,pup*0.35,0,TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(ex+lx-1.4,ey+ly-1.6,pup*0.35,0,TAU); ctx.fill();
   }
   // lid / brow
-  ctx.strokeStyle='#23262f'; ctx.lineWidth=5; ctx.lineCap='round';
+  ctx.strokeStyle=E; ctx.lineWidth=5; ctx.lineCap='round';
   var browY=ey-11, tilt=0;
   if(o.expr==='focus'){ tilt=side*0.18; }
   if(o.expr==='panic'){ tilt=-side*0.3; browY=ey-14; }
   if(o.expr==='shock'){ tilt=-side*0.35; browY=ey-15; }
+  if(o.expr==='smug'){ tilt=side*0.4; browY=ey-9; }
+  if(o.expr==='sneeze'){ tilt=side*0.5; browY=ey-8; }
   if(o.expr==='dead'){ tilt=-side*0.12*o.stare; browY=lerp(ey-11,ey-15,o.stare||0); }
   if(o.expr==='idle'){ tilt=side*0.22; }
   ctx.save(); ctx.translate(ex,browY); ctx.rotate(tilt);
   ctx.beginPath(); ctx.moveTo(-9,0); ctx.lineTo(9,0); ctx.stroke();
   ctx.restore();
-  // half lid for idle smugness
-  if(o.expr==='idle'||o.expr==='dead'){
+  // half lid for idle / smug / sneeze
+  if(o.expr==='idle'||o.expr==='smug'||o.expr==='sneeze'){
     ctx.fillStyle='#8d98ad';
-    var lidA=o.expr==='dead'?lerp(0.32,0.45,o.stare||0):0.3;
+    var lidA = o.expr==='smug'?0.5 : o.expr==='sneeze'?0.6 : 0.3;
     ctx.beginPath(); ctx.ellipse(ex,ey,8.5,9,0,Math.PI*1.05,Math.PI*1.95);
     ctx.lineTo(ex+8.5,ey-9*lidA); ctx.closePath(); ctx.fill();
   }
@@ -1570,9 +1747,13 @@ function bps(){ return currentBPM()/60; }
 G.bps=104/60;
 
 function update(dt){
+  // freeze-frame (bullet time) for milestone hits
+  if(G.freezeT>0){ dt *= 0.18; G.freezeT=Math.max(0,G.freezeT-dt*5); }
   G.bps = bps();
   if(G.state==='play'){
     G.beatClock += dt*bps();
+    var bi=Math.floor(G.beatClock);
+    if(bi!==G.lastBeatInt){ G.lastBeatInt=bi; G.beatPulse=1; }
     G.runLen=(performance.now()-G.runStart)/1000;
     fillQueue();
     // auto-pass / missed food
@@ -1610,6 +1791,10 @@ function update(dt){
   fxUpdate(dt);
   G.shake=Math.max(0,G.shake-dt*22);
   G.zoomPunch=Math.max(0,G.zoomPunch-dt*2.2);
+  G.flashT=Math.max(0,G.flashT-dt*2.6);
+  G.beatPulse=Math.max(0,G.beatPulse-dt*5);
+  G.speedLines=Math.max(0,G.speedLines-dt*1.5);
+  G.derpT=Math.max(0,G.derpT-dt);
 }
 
 function render(t,dt){
@@ -1624,14 +1809,31 @@ function render(t,dt){
 
   // ---- camera space: world only (zoom + shake never touch the HUD) ----
   ctx.save();
-  // camera zoom around disc
-  var z=1+G.zoomPunch;
+  // camera zoom around disc (plus beat thump)
+  var z=1+G.zoomPunch + G.beatPulse*0.035;
   if(eventActive()&&G.event.type==='zoomies'){ var ep=eventP(); z*=1+0.07*Math.sin(ep*TAU*6); }
   ctx.translate(210,430);
   ctx.scale(z,z);
   ctx.translate(-210,-430);
   // shake
   if(G.shake>0.2) ctx.translate(rnd(-G.shake,G.shake)*0.6,rnd(-G.shake,G.shake)*0.6);
+
+  // speed lines during high combo / on perfect bursts
+  if(G.state==='play' && (G.speedLines>0.05 || G.combo>=30)){
+    var slA = Math.max(G.speedLines, G.combo>=30?0.3:0) * (G.combo>=100?1:0.7);
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,'+(0.12*slA)+')';
+    ctx.lineWidth=2; ctx.lineCap='round';
+    for(var li=0; li<22; li++){
+      var ang = (li/22)*TAU + (t*0.0008);
+      var r1 = 150 + (li%3)*14;
+      var r2 = r1 + 40 + G.combo*0.6;
+      var px=210+Math.cos(ang)*r1, py=430+Math.sin(ang)*r1;
+      ctx.beginPath(); ctx.moveTo(px,py);
+      ctx.lineTo(210+Math.cos(ang)*r2, 430+Math.sin(ang)*r2); ctx.stroke();
+    }
+    ctx.restore();
+  }
 
   drawScene(t);
   pdraw(0);
@@ -1668,6 +1870,16 @@ function render(t,dt){
   }
   if(G.state==='title') drawTitle(t);
   if(G.state==='over') drawOver(t);
+
+  // screen flash overlay (perfect white / fail red / milestone gold)
+  if(G.flashT>0){
+    var fa = clamp(G.flashT,0,1) * 0.5;
+    ctx.save();
+    ctx.globalAlpha = fa;
+    ctx.fillStyle = G.flashCol;
+    ctx.fillRect(0,0,VW,VH);
+    ctx.restore();
+  }
 
   ctx.restore();
 }
