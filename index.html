@@ -514,7 +514,11 @@ function addText(x,y,str,size,color,rot){
 function addWave(x,y,maxR,color,w){
   waves.push({x:x,y:y,r:10,maxR:maxR,life:0.4,max:0.4,color:color||'#ffffff',w:w||6});
 }
+/* big timing-judgment popup at the peck lane */
+var judgeFX={txt:'',col:'#ffffff',t:0,max:0.72};
+function showJudge(txt,col){ judgeFX.txt=txt; judgeFX.col=col||'#ffffff'; judgeFX.t=judgeFX.max; }
 function fxUpdate(dt){
+  if(judgeFX.t>0) judgeFX.t-=dt;
   for(var i=texts.length-1;i>=0;i--){ var t=texts[i]; t.life-=dt; t.y+=t.vy*dt; t.vy*=0.94; if(t.life<=0) texts.splice(i,1); }
   for(var j=waves.length-1;j>=0;j--){ var wv=waves[j]; wv.life-=dt; var p=1-wv.life/wv.max; wv.r=lerp(10,wv.maxR,easeOutCubic(p)); if(wv.life<=0) waves.splice(j,1); }
 }
@@ -639,16 +643,21 @@ function doPeck(){
     var col = FOOD_COLOR[n.t.food]||[255,255,255];
     pburst(tp.x,tp.y,[col,[255,255,255]],perfect?22:14,240,1,0.7);
     if(perfect){
-      addText(tp.x,tp.y-24,pick(PERFECT_WORDS),22,'#ffffff');
+      showJudge('PERFECT!','#fff3a8');
+      if(chance(0.35)) addText(tp.x,tp.y-30,pick(PERFECT_WORDS),16,'#ffffff');
       addWave(tp.x,tp.y,60,'#ffffff',4);
+    }else{
+      showJudge('GOOD','#8ff7ff');
+      addWave(tp.x,tp.y,42,'#8ff7ff',3);
     }
     G.expr='happy'; G.exprTimer=0.28;
     checkMilestones();
     if(G.combo>=24 && chance(0.18)) addText(210+rnd(-60,60),260, pick(['HEH','NOM','TOO EASY','AGAIN','COWARD?']),18,'#ffe98a');
     return;
   }
-  // air peck = failure
-  failRun(n ? 'TOO EARLY. EMBARRASSING.' : 'AIR PECK. CUSTOM CONTENT.');
+  // air peck = failure (tell the player WHICH side they missed on)
+  if(n && n.d < 0) return failRun('TOO LATE. THE PIGEON IS DISGUSTED.');
+  return failRun(n ? 'TOO EARLY. EMBARRASSING.' : 'AIR PECK. CUSTOM CONTENT.');
 }
 
 function checkMilestones(){
@@ -684,6 +693,16 @@ function failRun(reason){
   musicStop();
   sfxWomp();
   pburst(210,640,[[120,255,120],[180,120,255]],12,120,1,0.9);
+  // big red judgment at the peck lane so every failure reads at a glance
+  var JM={
+    'TOO EARLY. EMBARRASSING.':['TOO EARLY!','#ff7a7a'],
+    'TOO LATE. THE PIGEON IS DISGUSTED.':['TOO LATE!','#ff7a7a'],
+    'AIR PECK. CUSTOM CONTENT.':['AIR PECK!','#ff7a7a'],
+    'THE SNACK ESCAPED. SHAME.':['TOO LATE!','#ff7a7a'],
+    'VEGGIE DETECTED. GROSS.':['VEGGIE?!','#c98bff'],
+    'PECKED THE VOID. WHY.':['VOID?!','#ff7a7a']
+  }[reason];
+  if(JM){ showJudge(JM[0],JM[1]); addWave(DISC.x,DISC.y+DISC.R-30,96,JM[1],7); }
 }
 
 /* ---- geometry ---- */
@@ -1218,25 +1237,67 @@ function drawPlatform(t){
   ctx.fillStyle='rgba(255,255,255,0.35)';
   ctx.beginPath(); ctx.arc(cx-3,cy-4,5,0,TAU); ctx.fill();
 
-  // peck zone marker (bottom arc)
+  // peck zone marker (bottom arc) — reacts LIVE to the incoming snack
   var beatFrac = G.beatClock%1;
-  var pulse = Math.max(0,1-beatFrac*3.5);
   var w=goodWindow();
+  // timing state of the nearest incoming snack
+  var nz = (G.state==='play')?nearestTarget():null;
+  var ad = nz?Math.abs(nz.d):99;
+  var nearFood = nz && nz.t.kind==='food';
+  var inGood  = nearFood && ad<=w;
+  var inPerfect = nearFood && ad<=0.13;
+  var nearBad = nz && nz.t.kind==='bad' && nz.d>-0.7 && nz.d<0.7;
+  var nearEmpty = nz && nz.t.kind==='empty' && ad<=w*1.6;
+  // 0 far away -> 1 dead on the beat
+  var heat = nearFood ? clamp(1-ad/(w*2.4),0,1) : 0;
+  var idlePulse = (G.state!=='play') ? Math.max(0,1-beatFrac*3.5) : 0;
+  var zoneCol = nearBad ? '#c45bff' : inPerfect ? '#d3ff5b' : inGood ? '#ffd23f' : sc.ring;
+  var glow = 8 + 20*heat + 10*idlePulse;
   ctx.save();
   ctx.translate(cx,cy);
   ctx.lineCap='round';
-  ctx.strokeStyle=sc.ring;
-  ctx.shadowColor=sc.ring; ctx.shadowBlur=14+10*pulse;
+  // GOOD window arc (brightens + warms as the snack closes in)
+  ctx.strokeStyle=zoneCol;
+  ctx.globalAlpha = G.state==='play' ? (0.35+0.65*Math.max(heat,nearBad?0.7:0)) : 1;
+  ctx.shadowColor=zoneCol; ctx.shadowBlur=glow;
   ctx.lineWidth=10;
   ctx.beginPath(); ctx.arc(0,0,DISC.R-6,Math.PI/2 - w,Math.PI/2 + w); ctx.stroke();
   ctx.shadowBlur=0;
-  ctx.strokeStyle='rgba(255,255,255,'+(0.4+0.5*pulse)+')'; ctx.lineWidth=3;
+  ctx.globalAlpha=1;
+  // PERFECT inner arc — green flash in the perfect pocket
+  var pCol = inPerfect ? '#eaff9a' : 'rgba(255,255,255,'+(0.4+0.5*idlePulse)+')';
+  ctx.strokeStyle=pCol; ctx.lineWidth= inPerfect?5:3;
+  if(inPerfect){ ctx.shadowColor='#d3ff5b'; ctx.shadowBlur=16; }
   ctx.beginPath(); ctx.arc(0,0,DISC.R-6,Math.PI/2-0.13,Math.PI/2+0.13); ctx.stroke();
-  // arrow
-  ctx.fillStyle=sc.ring;
+  ctx.shadowBlur=0;
+
+  // fixed target ring at the exact peck point (sync ring shrinks onto this)
+  if(G.state==='play'){
+    var ringCol = nearBad ? '#c45bff' : nearEmpty ? 'rgba(255,255,255,0.5)' : inPerfect ? '#d3ff5b' : inGood ? '#ffd23f' : '#ffffff';
+    ctx.save();
+    ctx.translate(0,DISC.R-30);
+    ctx.globalAlpha = nearEmpty?0.35:(inPerfect?1:inGood?0.85:0.28);
+    ctx.strokeStyle=ringCol; ctx.lineWidth= inPerfect?4:3;
+    ctx.shadowColor=ringCol; ctx.shadowBlur=inPerfect?18:inGood?10:0;
+    ctx.beginPath(); ctx.arc(0,0,30,0,TAU); ctx.stroke();
+    if(nearBad){ // X marks the vegetable: DO NOT PECK
+      ctx.globalAlpha=0.9; ctx.strokeStyle='#e3b6ff'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(-9,-9); ctx.lineTo(9,9); ctx.moveTo(9,-9); ctx.lineTo(-9,9); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // arrow — pops bigger the tighter the timing, purple warning for veggies
+  var arrS = nearBad?1.12 : inPerfect?1.42 : inGood?1.18 : 1;
+  ctx.save();
+  ctx.translate(0,DISC.R+17);
+  ctx.scale(arrS,arrS);
+  ctx.fillStyle=zoneCol;
+  if(inPerfect||nearBad){ ctx.shadowColor=zoneCol; ctx.shadowBlur=16; }
   ctx.beginPath();
-  ctx.moveTo(0,DISC.R+26); ctx.lineTo(-12,DISC.R+8); ctx.lineTo(12,DISC.R+8);
+  ctx.moveTo(0,9); ctx.lineTo(-12,-9); ctx.lineTo(12,-9);
   ctx.closePath(); ctx.fill();
+  ctx.restore();
   ctx.restore();
 
   return {x:cx,y:cy};
@@ -1244,21 +1305,54 @@ function drawPlatform(t){
 
 function drawTargets(){
   var tiny = (eventActive() && G.event.type==='tinysnack') ? 0.78 : 1;
+  var ww = goodWindow();
+  var ntNear = (G.state==='play') ? nearestTarget() : null;
   for(var i=0;i<G.targets.length;i++){
     var tg=G.targets[i];
     if(tg.gone) continue;
     var d=tg.beat-G.beatClock;
-    if(d>9.5 || d<-1.4) continue;
+    if(d>7.2 || d<-1.4) continue;
+    // fade in over the far approach, fade out after passing — keeps lanes uncluttered
+    var aIn  = d>6 ? clamp((7.2-d)/1.2,0,1) : 1;
+    var aOut = d<0 ? clamp((d+1.4)/1.0,0,1) : 1;
+    var tAlpha = aIn*aOut;
     var step=TAU/8;
     var ang=Math.PI/2+d*step;
     var wob=(eventActive()&&G.event.type==='wobble')?Math.sin(G.beatClock*TAU*2+i)*3:0;
     var r=DISC.R-30;
     var x=DISC.x+wob+Math.cos(ang)*r, y=DISC.y+Math.sin(ang)*r;
+    var bob=Math.sin(G.beatClock*TAU*2+i)*2;
+    var cy2=y+bob+wob;
+    ctx.save();
+    ctx.globalAlpha=tAlpha;
+    // rhythm-game sync ring on the NEAREST incoming item: shrinks onto the lane ring
+    if(ntNear && ntNear.t===tg && d>0 && d<1.2){
+      var rr=30+d*30;
+      var rc, rw=3, rb=6;
+      if(tg.kind==='bad'){ rc='#c45bff'; rw=3; rb=10; }
+      else if(tg.kind==='food'){
+        if(d<=0.13){ rc='#d3ff5b'; rw=4; rb=16; }
+        else if(d<=ww){ rc='#ffd23f'; rw=4; rb=10; }
+        else { rc='rgba(255,255,255,0.75)'; }
+        ctx.save();
+        ctx.strokeStyle=rc; ctx.lineWidth=rw; ctx.shadowColor=rc; ctx.shadowBlur=rb;
+        ctx.beginPath(); ctx.arc(x,cy2,rr,0,TAU); ctx.stroke();
+        ctx.restore();
+      }
+      if(tg.kind==='bad'){
+        ctx.save();
+        ctx.strokeStyle=rc; ctx.lineWidth=rw; ctx.shadowColor=rc; ctx.shadowBlur=rb;
+        ctx.setLineDash([6,5]);
+        ctx.beginPath(); ctx.arc(x,cy2,rr,0,TAU); ctx.stroke();
+        ctx.restore();
+      }
+    }
     if(tg.kind==='empty'){
       // dashed ghost slot marker
-      ctx.save(); ctx.globalAlpha=0.25;
+      ctx.save(); ctx.globalAlpha=0.25*tAlpha;
       ctx.strokeStyle='#ffffff'; ctx.setLineDash([4,5]); ctx.lineWidth=2;
-      ctx.beginPath(); ctx.arc(x,y,12,0,TAU); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x,cy2,12,0,TAU); ctx.stroke();
+      ctx.restore();
       ctx.restore();
       continue;
     }
@@ -1268,16 +1362,16 @@ function drawTargets(){
       // warning aura
       var fl=0.5+0.5*Math.sin(G.beatClock*TAU*4);
       ctx.save();
-      ctx.strokeStyle='rgba(170,80,255,'+(0.4+0.4*fl)+')'; ctx.lineWidth=3;
-      ctx.beginPath(); ctx.arc(x,y,26,0,TAU); ctx.stroke();
+      ctx.strokeStyle='rgba(170,80,255,'+((0.4+0.4*fl)*tAlpha)+')'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(x,cy2,26,0,TAU); ctx.stroke();
       ctx.restore();
     }
-    var bob=Math.sin(G.beatClock*TAU*2+i)*2;
     ctx.save();
-    ctx.translate(x,y+bob+wob);
+    ctx.translate(x,cy2);
     ctx.rotate(Math.sin(G.beatClock*TAU+i)*0.12 + (tg.kind==='bad'?Math.sin(G.beatClock*TAU*6)*0.2:0));
     var sc2=0.62*scale*tiny;
     ctx.drawImage(spr,-36*sc2,-36*sc2,72*sc2,72*sc2);
+    ctx.restore();
     ctx.restore();
   }
 }
@@ -1363,7 +1457,20 @@ function eventP(){
   return clamp((G.beatClock-G.event.start)/8,0,1);
 }
 
+function drawJudge(){
+  if(judgeFX.t<=0) return;
+  var p=1-judgeFX.t/judgeFX.max;           // 0..1 age
+  var a = p<0.12? p/0.12 : clamp(judgeFX.t/0.28,0,1);
+  var sc = 0.55 + 0.55*easeOutBack(clamp(p*4.5,0,1));
+  ctx.save();
+  ctx.globalAlpha=a;
+  ctx.translate(210,468);
+  ctx.scale(sc,sc);
+  outlinedText(judgeFX.txt,0,0,30,judgeFX.col,'#141420');
+  ctx.restore();
+}
 function drawTextsWaves(){
+  drawJudge();
   for(var i=0;i<waves.length;i++){
     var wv=waves[i];
     ctx.save();
