@@ -1290,18 +1290,18 @@ function drawPigeon(t, cx, cy, dt){
 
 function pigeonBody(x,y,t,o){
   var blue1='#8d98ad', blue2='#6f7b94', blue3='#5a657e', belly='#d4dcea';
-  // tail feathers
+  // tail feathers — fan of 5 for a fuller, fluffier look
   ctx.save();
   ctx.fillStyle=blue3;
-  for(var i=-1;i<=1;i++){
-    ctx.save(); ctx.translate(-46,10+i*12); ctx.rotate(0.5+i*0.22);
-    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-8,-22,16,34,7) : rr(ctx,-8,-22,16,34,7);
+  for(var i=-2;i<=2;i++){
+    ctx.save(); ctx.translate(-46,10+i*11); ctx.rotate(0.5+i*0.18);
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-7,-24,14,36,7) : rr(ctx,-7,-24,14,36,7);
     ctx.fill();
     // central shaft + sheen
-    ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=1.4;
-    ctx.beginPath(); ctx.moveTo(0,-16); ctx.lineTo(0,8); ctx.stroke();
+    ctx.strokeStyle='rgba(0,0,0,0.18)'; ctx.lineWidth=1.3;
+    ctx.beginPath(); ctx.moveTo(0,-18); ctx.lineTo(0,8); ctx.stroke();
     ctx.strokeStyle='rgba(255,255,255,0.18)';
-    ctx.beginPath(); ctx.moveTo(-3,-15); ctx.lineTo(-3,4); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-2.6,-16); ctx.lineTo(-2.6,4); ctx.stroke();
     ctx.restore();
   }
   ctx.restore();
@@ -1313,6 +1313,7 @@ function pigeonBody(x,y,t,o){
   ctx.rotate(wingA);
   ctx.fillStyle=blue3;
   ctx.beginPath(); ctx.ellipse(-40,-6,34,16,0,0,TAU); ctx.fill();
+  ctx.strokeStyle='rgba(40,48,68,0.22)'; ctx.lineWidth=2; ctx.stroke();
   ctx.fillStyle='rgba(255,255,255,0.25)';
   ctx.beginPath(); ctx.ellipse(-48,-10,14,6,0,0,TAU); ctx.fill();
   // feather tips
@@ -1344,6 +1345,20 @@ function pigeonBody(x,y,t,o){
   bsh.addColorStop(0,'rgba(70,80,110,0.28)'); bsh.addColorStop(1,'rgba(70,80,110,0)');
   ctx.fillStyle=bsh;
   ctx.beginPath(); ctx.ellipse(6,58,30,16,0,0,TAU); ctx.fill();
+  // chest feather rows — soft scalloped lines across the belly
+  ctx.strokeStyle='rgba(90,101,126,0.14)'; ctx.lineWidth=1.8; ctx.lineCap='round';
+  for(var cf=0;cf<5;cf++){
+    var cfY=18+cf*8;
+    ctx.beginPath();
+    for(var cfX=-22;cfX<=22;cfX+=11){
+      ctx.moveTo(cfX,cfY);
+      ctx.quadraticCurveTo(cfX+5.5,cfY-3,cfX+11,cfY);
+    }
+    ctx.stroke();
+  }
+  // subtle body outline for cleaner silhouette
+  ctx.strokeStyle='rgba(40,48,68,0.22)'; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.ellipse(0,14,56,60,0,0,TAU); ctx.stroke();
   // iridescent neck patch
   var ir=ctx.createLinearGradient(-20,-40,20,10);
   ir.addColorStop(0,'#27c99a'); ir.addColorStop(0.5,'#3b82d6'); ir.addColorStop(1,'#8a5cf0');
@@ -1358,6 +1373,10 @@ function pigeonBody(x,y,t,o){
   // feet
   ctx.strokeStyle='#ff8a1e'; ctx.lineWidth=7; ctx.lineCap='round';
   ctx.beginPath(); ctx.moveTo(-16,66); ctx.lineTo(-16,80); ctx.moveTo(18,66); ctx.lineTo(18,80); ctx.stroke();
+  // ankle joints
+  ctx.fillStyle='#d96f12';
+  ctx.beginPath(); ctx.arc(-16,68,4,0,TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(18,68,4,0,TAU); ctx.fill();
   ctx.lineWidth=5;
   ctx.beginPath(); ctx.moveTo(-16,80); ctx.lineTo(-28,80); ctx.moveTo(-16,80); ctx.lineTo(-6,80);
   ctx.moveTo(18,80); ctx.lineTo(6,80); ctx.moveTo(18,80); ctx.lineTo(30,80); ctx.stroke();
@@ -1373,6 +1392,7 @@ function pigeonBody(x,y,t,o){
   if(o.bFly){ ctx.rotate(1.2+o.wingFlap*0.7); }
   ctx.fillStyle=blue2;
   ctx.beginPath(); ctx.ellipse(30,-2,30,15,-0.2,0,TAU); ctx.fill();
+  ctx.strokeStyle='rgba(40,48,68,0.22)'; ctx.lineWidth=2; ctx.stroke();
   // feather layer lines + gloss
   ctx.strokeStyle='rgba(0,0,0,0.16)'; ctx.lineWidth=1.6; ctx.lineCap='round';
   for(var fw2=-1;fw2<=1;fw2++){
@@ -1403,6 +1423,11 @@ function pigeonBody(x,y,t,o){
   ctx.beginPath(); ctx.arc(0,0,40,0,TAU); ctx.fill();
   ctx.fillStyle='rgba(255,255,255,0.12)';
   ctx.beginPath(); ctx.arc(-10,-12,18,0,TAU); ctx.fill();
+  // subtle head outline + lower-head shadow
+  ctx.strokeStyle='rgba(40,48,68,0.22)'; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.arc(0,0,40,0,TAU); ctx.stroke();
+  ctx.fillStyle='rgba(60,70,95,0.18)';
+  ctx.beginPath(); ctx.ellipse(0,22,30,10,0,0,TAU); ctx.fill();
 
   // blush cheeks — stronger on happy/smug/money/derp
   if(o.expr!=='shock' && o.expr!=='dead'){
@@ -1443,10 +1468,21 @@ function pigeonBody(x,y,t,o){
   if(o.expr==='derp'||o.expr==='money'||o.expr==='sneeze') open=0.4;
   if(o.expr==='dead' && o.stare>0.6) open=0.2;
   ctx.save();
+  // beak outline color
+  var bo='#c96a12';
+  // mouth interior (dark) visible when beak opens
+  if(open>0.02){
+    ctx.fillStyle='#3a1f12';
+    ctx.beginPath();
+    ctx.moveTo(-6,2); ctx.lineTo(0,-28-open*8); ctx.lineTo(6,2);
+    ctx.quadraticCurveTo(3,4+open*6,0,4+open*6);
+    ctx.quadraticCurveTo(-3,4+open*6,-6,2); ctx.closePath(); ctx.fill();
+  }
   // upper beak
   ctx.fillStyle='#ff9420';
   ctx.beginPath();
   ctx.moveTo(-9,4); ctx.lineTo(0,-30-open*8); ctx.lineTo(9,4); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle=bo; ctx.lineWidth=1.6; ctx.stroke();
   ctx.fillStyle='#e07a12';
   ctx.beginPath();
   ctx.moveTo(-9,4); ctx.lineTo(0,-30-open*8); ctx.lineTo(2,4); ctx.closePath(); ctx.fill();
@@ -1458,6 +1494,7 @@ function pigeonBody(x,y,t,o){
   ctx.fillStyle='#ff8a1e';
   ctx.save(); ctx.translate(0,4); ctx.rotate(open*0.7);
   ctx.beginPath(); ctx.moveTo(-7,0); ctx.lineTo(0,12); ctx.lineTo(7,0); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle=bo; ctx.lineWidth=1.6; ctx.stroke();
   ctx.restore();
   // nostril
   ctx.fillStyle='#b35c0d'; ctx.beginPath(); ctx.arc(-2,-8,1.6,0,TAU); ctx.fill();
@@ -1550,21 +1587,28 @@ function drawEye(ex,ey,o,side){
   }
   // crossed eyes for derp
   var derpLook = (o.expr==='derp') ? (side===1 ? -6 : 6) : 0;
-  // white
+  // eye white with subtle dark outline
   ctx.fillStyle='#f2f5fb';
   ctx.beginPath(); ctx.ellipse(ex,ey,8.5,9,0,0,TAU); ctx.fill();
+  ctx.strokeStyle='rgba(40,48,68,0.25)'; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.ellipse(ex,ey,8.5,9,0,0,TAU); ctx.stroke();
   var pup=4.5;
-  if(o.expr==='shock'){ pup=3; ctx.fillStyle='#f2f5fb'; ctx.beginPath(); ctx.ellipse(ex,ey,11,12,0,0,TAU); ctx.fill(); }
+  if(o.expr==='shock'){ pup=3; ctx.fillStyle='#f2f5fb'; ctx.beginPath(); ctx.ellipse(ex,ey,11,12,0,0,TAU); ctx.fill(); ctx.stroke(); }
   if(o.expr==='sneeze'){ pup=2.2; }
   var lx = derpLook || o.lookX, ly = o.lookY;
   if(!o.bShades || o.expr==='shock'){
+    // iris ring (warm brown) around pupil for more lifelike eyes
+    ctx.fillStyle='#6b4a2b';
+    ctx.beginPath(); ctx.arc(ex+lx,ey+ly,pup+1.3,0,TAU); ctx.fill();
     ctx.fillStyle='#1b1e26';
     ctx.beginPath(); ctx.arc(ex+lx,ey+ly,pup,0,TAU); ctx.fill();
+    // double catchlights
     ctx.fillStyle='#fff';
     ctx.beginPath(); ctx.arc(ex+lx-1.4,ey+ly-1.6,pup*0.35,0,TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(ex+lx+1.6,ey+ly+1.2,pup*0.18,0,TAU); ctx.fill();
   }
-  // lid / brow
-  ctx.strokeStyle=E; ctx.lineWidth=5; ctx.lineCap='round';
+  // lid / brow — curved arc instead of straight line for more expression
+  ctx.strokeStyle=E; ctx.lineWidth=4.5; ctx.lineCap='round';
   var browY=ey-11, tilt=0;
   if(o.expr==='focus'){ tilt=side*0.18; }
   if(o.expr==='panic'){ tilt=-side*0.3; browY=ey-14; }
@@ -1573,8 +1617,20 @@ function drawEye(ex,ey,o,side){
   if(o.expr==='sneeze'){ tilt=side*0.5; browY=ey-8; }
   if(o.expr==='dead'){ tilt=-side*0.12*o.stare; browY=lerp(ey-11,ey-15,o.stare||0); }
   if(o.expr==='idle'){ tilt=side*0.22; }
+  if(o.expr==='wow'){ tilt=-side*0.12; browY=ey-14; }
   ctx.save(); ctx.translate(ex,browY); ctx.rotate(tilt);
-  ctx.beginPath(); ctx.moveTo(-9,0); ctx.lineTo(9,0); ctx.stroke();
+  ctx.beginPath();
+  if(o.expr==='panic'||o.expr==='shock'){
+    // worried / raised inner-brow curve
+    ctx.moveTo(-9,2); ctx.quadraticCurveTo(0,-3,9,2);
+  } else if(o.expr==='smug'||o.expr==='sneeze'){
+    // smug lowered curve
+    ctx.moveTo(-9,-1); ctx.quadraticCurveTo(0,2,9,-1);
+  } else {
+    // neutral gentle arch
+    ctx.moveTo(-9,1); ctx.quadraticCurveTo(0,-2,9,1);
+  }
+  ctx.stroke();
   ctx.restore();
   // half lid for idle / smug / sneeze
   if(o.expr==='idle'||o.expr==='smug'||o.expr==='sneeze'){
